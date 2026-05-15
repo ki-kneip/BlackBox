@@ -34,6 +34,7 @@ func (s *Server) Run(ctx context.Context) error {
 	folderH  := handlers.NewFolderHandler(s.db)
 	issuerH  := handlers.NewIssuerHandler(s.db)
 	logH     := handlers.NewLogHandler(s.db, s.pool)
+	triggerH := handlers.NewTriggerHandler(s.db)
 
 	// ── Public ────────────────────────────────────────────────────────────────
 	r.POST("/auth/register", authH.Register)
@@ -66,10 +67,10 @@ func (s *Server) Run(ctx context.Context) error {
 			proj.POST("/issuers", middleware.RequirePermission(auth.PermIssuersManage), issuerH.Create)
 			proj.DELETE("/issuers/:issuerID", middleware.RequirePermission(auth.PermIssuersManage), issuerH.Revoke)
 
-			// triggers (stubs until M9)
-			proj.GET("/triggers", middleware.RequirePermission(auth.PermTriggersManage), s.handleListTriggers)
-			proj.POST("/triggers", middleware.RequirePermission(auth.PermTriggersManage), s.handleCreateTrigger)
-			proj.PATCH("/triggers/:triggerID", middleware.RequirePermission(auth.PermTriggersManage), s.handleUpdateTrigger)
+			// triggers
+			proj.GET("/triggers", middleware.RequirePermission(auth.PermTriggersManage), triggerH.List)
+			proj.POST("/triggers", middleware.RequirePermission(auth.PermTriggersManage), triggerH.Create)
+			proj.PATCH("/triggers/:triggerID", middleware.RequirePermission(auth.PermTriggersManage), triggerH.Update)
 
 			// members
 			proj.GET("/me", memberH.Me)
@@ -103,6 +104,3 @@ func port() string {
 	return "8080"
 }
 
-func (s *Server) handleListTriggers(c *gin.Context)  {}
-func (s *Server) handleCreateTrigger(c *gin.Context) {}
-func (s *Server) handleUpdateTrigger(c *gin.Context) {}

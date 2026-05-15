@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	"blackbox.io/core/internal/chain"
 	"blackbox.io/core/internal/domain"
+	"blackbox.io/core/internal/events"
 	"blackbox.io/core/internal/storage"
 )
 
@@ -23,17 +25,19 @@ type Subscription struct {
 }
 
 type Pool struct {
-	db      *storage.DB
-	jobs    chan Job
-	subs    []*Subscription
-	subsMu  sync.Mutex
-	folders sync.Map // map[folderID]*sync.Mutex — serialises hash chain per folder
+	db        *storage.DB
+	publisher *events.Client
+	jobs      chan Job
+	subs      []*Subscription
+	subsMu    sync.Mutex
+	folders   sync.Map // map[folderID]*sync.Mutex — serialises hash chain per folder
 }
 
-func NewPool(db *storage.DB) *Pool {
+func NewPool(db *storage.DB, publisher *events.Client) *Pool {
 	return &Pool{
-		db:   db,
-		jobs: make(chan Job, 1024),
+		db:        db,
+		publisher: publisher,
+		jobs:      make(chan Job, 1024),
 	}
 }
 
@@ -128,6 +132,12 @@ func (p *Pool) process(ctx context.Context, job Job) *domain.Log {
 	if err := p.db.WriteLog(ctx, &entry); err != nil {
 		log.Printf("worker: write log: %v", err)
 		return nil
+	}
+
+	if p.publisher != nil {
+		if data, err := json.Marshal(&entry); err == nil {
+			_ = p.publisher.Publish(events.SubjectLogsPrefix+entry.ProjectID, data)
+		}
 	}
 
 	return &entry
